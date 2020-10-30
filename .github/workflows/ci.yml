@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        racket-version: [ 'current' ]
+        racket-version: [ '7.7', 'current' ]
         racket-variant: [ 'regular', 'CS' ]
         racket-distribution: [ 'full' ]
     steps:
@@ -19,5 +19,7 @@ jobs:
           version: ${{ matrix.racket-version }}
           variant: ${{ matrix.racket-variant }}
           distribution: ${{ matrix.racket-distribution }}
+      - name: Install package and its dependencies
+        run: raco pkg install --auto --batch
       - name: Run tests
-        run: raco test *.rkt
+        run: raco test -p project-management
