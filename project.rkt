@@ -1,9 +1,5 @@
 #lang racket/base
 
-(require racket/stream
-	 racket/list
-	 racket/generic)
-
 (provide (struct-out resource-struct)
 	 resource
 	 (struct-out deliverable-struct)
@@ -22,6 +18,13 @@
 	 project
 	 project-tasks-stream)
 
+(require racket/stream
+	 racket/list
+	 racket/generic)
+
+(module+ test
+  (require rackunit))
+
 ;; Resource and deliverable declarations
 (struct resource
   (name role)
@@ -29,17 +32,31 @@
   #:name resource-struct
   #:constructor-name make-resource)
 
+(define-syntax-rule (resource id name role)
+  (define id (make-resource name role)))
+
+(module+ test
+  (test-begin
+   (resource res1 "John Smith" "Engineer")
+   (check-pred resource? res1)
+   (check-equal? res1 (make-resource "John Smith" "Engineer"))
+   ;; Role is significant, not just the name
+   (check-not-equal? res1 (make-resource "John Smith" "Manager"))))
+
 (struct deliverable
   (name description)
   #:transparent
   #:name deliverable-struct
   #:constructor-name make-deliverable)
 
-(define-syntax-rule (resource id name role)
-  (define id (make-resource name role)))
-
 (define-syntax-rule (deliverable id name desc)
   (define id (make-deliverable name desc)))
+
+(module+ test
+  (test-begin
+   (deliverable report "Important report" "This report is important")
+   (check-pred deliverable? report)
+   (check-equal? report (make-deliverable "Important report" "This report is important"))))
 
 ;; Convenience macros to visually distinguish between inputs,
 ;; deliverables, etc.
@@ -54,6 +71,12 @@
 (define-syntax-rule (milestone m)
   m)
 
+(module+ test
+  (check-equal? (deliverables 'report) '(report))
+  (check-equal? (outcomes) '())
+  (check-not-equal? (deliverables 'report) 'report)
+  (check-equal? (milestone "Milestone") "Milestone"))
+
 ;; Work estomates are represented as a hashmap between a (previously
 ;; declared) resource and a number of days.
 (define-syntax work
@@ -63,6 +86,13 @@
      (let [(h (work other ...))]
        (hash-set! h resource estimate)
        h)]))
+
+(module+ test
+  (test-begin
+   (define w (work 'alice 3 'bob 2))
+   (check-pred hash? w)
+   (check-eq? (hash-count w) 2)
+   (check-eq? (apply + (hash-values w)) 5)))
 
 ;; Tasks containing all the useful information required. 
 (struct task
@@ -105,6 +135,18 @@
 (define (task name inputs actions outcomes deliverables work [milestone #f])
   (make-task name inputs actions outcomes deliverables work milestone))
 
+(module+ test
+  (define t1 (task "" (inputs) (actions) (outcomes) (deliverables) (work)))
+  (test-begin
+   (check-pred task? t1)
+   (check-false (task-milestone t1))
+   (check-equal? t1 (make-task "" '() '() '() '() (make-hash) #f)))
+  (define t2 (task "Task" (inputs) (actions) (outcomes) (deliverables) (work) (milestone 'm)))
+  (test-begin
+   (check-not-equal? t1 t2)
+   (check-equal? (task-milestone t2) 'm)
+   (check-equal? (task-name t2) "Task")))
+
 ;; Groups implement the generic interface for streams, to allow easy
 ;; iteration of tasks.
 (struct group
@@ -124,6 +166,19 @@
   (syntax-rules ()
     [(group name) (make-group name '())]
     [(group name task ...) (make-group name (list task ...))]))
+
+(module+ test
+  (define grp (group "Group" t1 t2))
+  (test-begin
+   (check-pred group? grp)
+   (check-equal? grp (make-group "Group" (list t1 t2))))
+  ;; Stream interface
+  (test-begin
+   (check-pred stream? grp)
+   (check-eq? (stream-first grp) t1)
+   (check-eq? (stream-ref grp 1) t2)
+   (check-eq? (stream-length grp) 2)
+   (check-equal? (stream->list grp) (group-tasks grp))))
 
 ;; Project are also streams, in order to iterate on groups.
 (struct project
@@ -146,7 +201,27 @@
     [(project name) (make-project name '())]
     [(project name group ...) (make-project name (list group ...))]))
 
+(module+ test
+  (define prj (project "Project" grp))
+  (test-begin
+   (check-pred project? prj)
+   (check-equal? prj (make-project "Project" (list grp))))
+  ;; Stream interface
+  (test-begin
+   (check-pred stream? prj)
+   (check-eq? (stream-first prj) grp)
+   (check-eq? (stream-length prj) 1)
+   (check-equal? (stream->list prj) (project-groups prj))))
+
 (define (project-tasks-stream project)
   (for*/stream ([group project]
 		[task group])
 	       task))
+
+(module+ test
+  (test-begin
+   (define prj-tasks-stream (project-tasks-stream prj))
+   (check-pred stream? prj-tasks-stream)
+   (check-eq? (stream-first prj-tasks-stream) t1)
+   (check-eq? (stream-length prj-tasks-stream) 2)
+   (check-true (stream-andmap task? prj-tasks-stream))))
