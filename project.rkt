@@ -19,7 +19,8 @@
 	 (struct-out group-struct)
 	 group
 	 (struct-out project-struct)
-	 project)
+	 project
+	 project-tasks-stream)
 
 ;; Resource and deliverable declarations
 (struct resource
@@ -144,3 +145,8 @@
   (syntax-rules ()
     [(project name) (make-project name '())]
     [(project name group ...) (make-project name (list group ...))]))
+
+(define (project-tasks-stream project)
+  (for*/stream ([group project]
+		[task group])
+	       task))
