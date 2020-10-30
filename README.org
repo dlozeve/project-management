@@ -1,3 +1,5 @@
 * project-management
 
+[[https://github.com/dlozeve/project-management/actions][https://github.com/dlozeve/project-management/workflows/CI/badge.svg]]
+
 Tools for project management and planning
