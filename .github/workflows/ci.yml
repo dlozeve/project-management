@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        racket-version: [ '7.7', 'current' ]
+        racket-version: [ 'current' ]
         racket-variant: [ 'regular', 'CS' ]
         racket-distribution: [ 'full' ]
     steps:
